@@ -122,102 +122,19 @@ const SITES=[{name:"日本(ZJM)-含工廠",region:"日本",color:"#4f9cf9",value
 const TOTAL=[702, 692, 686, 730, 704, 727, 736, 762, 783, 783, 824, 901, 854, 874, 871, 865, 884, 921, 976, 897, 848];
 let range=12,ctype='line',tChart=null,mChart=null,pChart=null,rChart=null;
 const fmt=s=>{const d=new Date(s.replace(/\//g,'-'));return d.toLocaleDateString('zh-TW',{year:'2-digit',month:'2-digit'})};
-function slice(){
-  const n=DATES.length,e=range===0?n:Math.min(range,n);
-  return{dates:DATES.slice(0,e),total:TOTAL.slice(0,e),sites:SITES.map(s=>({...s,v:s.values.slice(0,e)}))};
-}
-function kpi(id,did,latest,prev){
-  document.getElementById(id).textContent=latest.toLocaleString();
-  const d=latest-prev,el=document.getElementById(did);
-  el.innerHTML='vs 前期 '+(d>=0?'▲':'▼')+Math.abs(d);
-  el.className='kpi-delta '+(d>=0?'up':'down');
-}
-function updateKPIs(){
-  kpi('kTotal','kTotalD',TOTAL[0],TOTAL[1]);
-  const tw=SITES.find(s=>s.region==='台灣');if(tw)kpi('kTW','kTWD',tw.values[0],tw.values[1]);
-  const cnL=SITES.filter(s=>s.region==='中國').reduce((a,s)=>a+s.values[0],0);
-  const cnP=SITES.filter(s=>s.region==='中國').reduce((a,s)=>a+s.values[1],0);
-  kpi('kCN','kCND',cnL,cnP);
-  const vn=SITES.find(s=>s.region==='越南');if(vn)kpi('kVN','kVND',vn.values[0],vn.values[1]);
-  document.getElementById('kSpan').textContent=DATES.length+' 個時間點';
-  document.getElementById('kRange').textContent=DATES[DATES.length-1].slice(0,7)+' ～ '+DATES[0].slice(0,7);
-}
-function buildTotal(){
-  const{dates,total}=slice();
-  const labels=[...dates].reverse().map(fmt),data=[...total].reverse();
-  const ctx=document.getElementById('totalChart').getContext('2d');
-  const g=ctx.createLinearGradient(0,0,0,260);g.addColorStop(0,'rgba(79,156,249,.25)');g.addColorStop(1,'rgba(79,156,249,0)');
-  if(tChart)tChart.destroy();
-  tChart=new Chart(ctx,{type:ctype,data:{labels,datasets:[{label:'全球總人數',data,borderColor:'#4f9cf9',backgroundColor:ctype==='line'?g:'rgba(79,156,249,.6)',borderWidth:2.5,pointRadius:ctype==='line'?4:0,tension:.35,fill:ctype==='line'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1d27',borderColor:'rgba(255,255,255,.1)',borderWidth:1,callbacks:{label:c=>` ${c.parsed.y.toLocaleString()} 人`}}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:10},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:10}}}}}});
-}
-function buildMulti(){
-  const{dates,sites}=slice();
-  const labels=[...dates].reverse().map(fmt);
-  const ctx=document.getElementById('multiChart').getContext('2d');
-  const ds=sites.map(s=>({label:s.name,data:[...s.v].reverse(),borderColor:s.color,backgroundColor:s.color+'22',borderWidth:1.8,pointRadius:2,tension:.35,spanGaps:true}));
-  if(mChart)mChart.destroy();
-  mChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:9},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:9}}}}}});
-  const lg=document.getElementById('multiLegend');lg.innerHTML='';
-  sites.forEach(s=>{const i=document.createElement('div');i.className='leg';i.innerHTML=`<div class="dot" style="background:${s.color}"></div><span>${s.name}</span>`;lg.appendChild(i);});
-}
-function buildPie(){
-  const ctx=document.getElementById('pieChart').getContext('2d');
-  if(pChart)pChart.destroy();
-  pChart=new Chart(ctx,{type:'doughnut',data:{labels:SITES.map(s=>s.name),datasets:[{data:SITES.map(s=>s.values[0]||0),backgroundColor:SITES.map(s=>s.color+'cc'),borderColor:SITES.map(s=>s.color),borderWidth:1,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1d27',callbacks:{label:c=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);return ` ${c.parsed} 人 (${((c.parsed/t)*100).toFixed(1)}%)`;}}}}}});
-}
-function buildBars(){
-  const c=document.getElementById('regionBars');c.innerHTML='';
-  const mx=Math.max(...SITES.map(s=>s.values[0]||0));
-  SITES.forEach(s=>{const v=s.values[0]||0,p=mx>0?(v/mx*100).toFixed(1):0;const r=document.createElement('div');r.className='rbar-row';r.innerHTML=`<div class="rbar-label">${s.name.length>12?s.name.slice(0,12)+'…':s.name}</div><div class="rbar-track"><div class="rbar-fill" style="width:${p}%;background:${s.color}"></div></div><div class="rbar-num">${v}</div>`;c.appendChild(r);});
-}
-function spark(vals,color){
-  const W=80,H=28,p=2,cl=[...vals].reverse();
-  const mx=Math.max(...cl),mn=Math.min(...cl),rng=mx-mn||1,n=cl.length;
-  const pts=cl.map((v,i)=>`${(p+(i/(n-1))*(W-p*2)).toFixed(1)},${(H-p-(v-mn)/rng*(H-p*2)).toFixed(1)}`).join(' ');
-  const lx=(p+((n-1)/(n-1))*(W-p*2)).toFixed(1),ly=(H-p-(cl[n-1]-mn)/rng*(H-p*2)).toFixed(1);
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${lx}" cy="${ly}" r="2" fill="${color}"/></svg>`;
-}
-function buildTable(){
-  const tb=document.getElementById('tbody');tb.innerHTML='';
-  SITES.forEach(s=>{
-    const l=s.values[0]??0,pr=s.values[1]??0,d=l-pr;
-    const ds=d===0?`<span style="color:var(--muted)">—</span>`:`<span class="${d>0?'up':'down'}">${d>0?'▲':'▼'}${Math.abs(d)}</span>`;
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td style="font-weight:500;color:${s.color}">${s.name}</td><td class="num" style="color:${s.color}">${l}</td><td class="num" style="color:var(--muted)">${pr}</td><td class="num">${ds}</td><td class="num" style="color:var(--muted)">${Math.max(...s.values)}</td><td class="num" style="color:var(--muted)">${Math.min(...s.values.filter(v=>v>0))}</td><td>${spark(s.values,s.color)}</td>`;
-    tb.appendChild(tr);
-  });
-  const l=TOTAL[0],pr=TOTAL[1],d=l-pr;
-  const ds=`<span class="${d>=0?'up':'down'}">${d>=0?'▲':'▼'}${Math.abs(d)}</span>`;
-  const tr=document.createElement('tr');tr.style.borderTop='1px solid rgba(255,255,255,.15)';
-  tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">全球總人數</td><td class="num" style="color:var(--accent);font-weight:700">${l.toLocaleString()}</td><td class="num" style="color:var(--muted)">${pr.toLocaleString()}</td><td class="num">${ds}</td><td class="num" style="color:var(--muted)">${Math.max(...TOTAL).toLocaleString()}</td><td class="num" style="color:var(--muted)">${Math.min(...TOTAL).toLocaleString()}</td><td>${spark(TOTAL,'#4f9cf9')}</td>`;
-  tb.appendChild(tr);
-}
-function showRegion(name,el){
-  document.querySelectorAll('.tag').forEach(t=>t.classList.remove('active'));
-  if(el)el.classList.add('active');
-  document.getElementById('closeTag').style.display='inline-block';
-  const matched=SITES.filter(s=>s.region===name);
-  document.getElementById('regionPanel').style.display='block';
-  document.getElementById('rpTitle').textContent='📍 '+name+' 地區詳情';
-  const rk=document.getElementById('rkpis');rk.innerHTML='';
-  matched.forEach(s=>{const d=s.values[0]-s.values[1];const dc=d>0?'var(--green)':d<0?'var(--red)':'var(--muted)';rk.innerHTML+=`<div class="rkpi"><div class="rkpi-label">${s.name}</div><div class="rkpi-value" style="color:${s.color}">${s.values[0]}</div><div style="font-size:.75rem;color:${dc};margin-top:4px">vs 前期 ${d>0?'▲':d<0?'▼':'±'}${Math.abs(d)}</div></div>`;});
-  const labels=[...DATES].reverse().map(fmt);
-  const ds=matched.map(s=>({label:s.name,data:[...s.values].reverse(),borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:3,tension:.35,spanGaps:true}));
-  const ctx=document.getElementById('regionChart').getContext('2d');
-  if(rChart)rChart.destroy();
-  rChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:10},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:10}}}}}});
-  const lg=document.getElementById('regionLegend');lg.innerHTML='';
-  matched.forEach(s=>{const i=document.createElement('div');i.className='leg';i.innerHTML=`<div class="dot" style="background:${s.color}"></div><span>${s.name}</span>`;lg.appendChild(i);});
-  document.getElementById('regionPanel').scrollIntoView({behavior:'smooth',block:'start'});
-}
-function closeRegion(){
-  document.getElementById('regionPanel').style.display='none';
-  document.querySelectorAll('.tag').forEach(t=>t.classList.remove('active'));
-  document.getElementById('closeTag').style.display='none';
-  if(rChart){rChart.destroy();rChart=null;}
-}
-function setRange(r,btn){range=r;document.querySelectorAll('.btn-group .btn').forEach(b=>{if(b.onclick&&b.onclick.toString().includes('setRange'))b.classList.remove('active');});btn.classList.add('active');buildTotal();buildMulti();}
-function setType(t){ctype=t;document.getElementById('btnLine').classList.toggle('active',t==='line');document.getElementById('btnBar').classList.toggle('active',t==='bar');buildTotal();}
+function slice(){const n=DATES.length,e=range===0?n:Math.min(range,n);return{dates:DATES.slice(0,e),total:TOTAL.slice(0,e),sites:SITES.map(s=>({...s,v:s.values.slice(0,e)}))}}
+function kpi(id,did,latest,prev){document.getElementById(id).textContent=latest.toLocaleString();const d=latest-prev,el=document.getElementById(did);el.innerHTML='vs 前期 '+(d>=0?'▲':'▼')+Math.abs(d);el.className='kpi-delta '+(d>=0?'up':'down')}
+function updateKPIs(){kpi('kTotal','kTotalD',TOTAL[0],TOTAL[1]);const tw=SITES.find(s=>s.region==='台灣');if(tw)kpi('kTW','kTWD',tw.values[0],tw.values[1]);const cnL=SITES.filter(s=>s.region==='中國').reduce((a,s)=>a+s.values[0],0);const cnP=SITES.filter(s=>s.region==='中國').reduce((a,s)=>a+s.values[1],0);kpi('kCN','kCND',cnL,cnP);const vn=SITES.find(s=>s.region==='越南');if(vn)kpi('kVN','kVND',vn.values[0],vn.values[1]);document.getElementById('kSpan').textContent=DATES.length+' 個時間點';document.getElementById('kRange').textContent=DATES[DATES.length-1].slice(0,7)+' ～ '+DATES[0].slice(0,7)}
+function buildTotal(){const{dates,total}=slice();const labels=[...dates].reverse().map(fmt),data=[...total].reverse();const ctx=document.getElementById('totalChart').getContext('2d');const g=ctx.createLinearGradient(0,0,0,260);g.addColorStop(0,'rgba(79,156,249,.25)');g.addColorStop(1,'rgba(79,156,249,0)');if(tChart)tChart.destroy();tChart=new Chart(ctx,{type:ctype,data:{labels,datasets:[{label:'全球總人數',data,borderColor:'#4f9cf9',backgroundColor:ctype==='line'?g:'rgba(79,156,249,.6)',borderWidth:2.5,pointRadius:ctype==='line'?4:0,tension:.35,fill:ctype==='line'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1d27',borderColor:'rgba(255,255,255,.1)',borderWidth:1,callbacks:{label:c=>` ${c.parsed.y.toLocaleString()} 人`}}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:10},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:10}}}}}})}
+function buildMulti(){const{dates,sites}=slice();const labels=[...dates].reverse().map(fmt);const ctx=document.getElementById('multiChart').getContext('2d');const ds=sites.map(s=>({label:s.name,data:[...s.v].reverse(),borderColor:s.color,backgroundColor:s.color+'22',borderWidth:1.8,pointRadius:2,tension:.35,spanGaps:true}));if(mChart)mChart.destroy();mChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:9},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:9}}}}}});const lg=document.getElementById('multiLegend');lg.innerHTML='';sites.forEach(s=>{const i=document.createElement('div');i.className='leg';i.innerHTML=`<div class="dot" style="background:${s.color}"></div><span>${s.name}</span>`;lg.appendChild(i)})}
+function buildPie(){const ctx=document.getElementById('pieChart').getContext('2d');if(pChart)pChart.destroy();pChart=new Chart(ctx,{type:'doughnut',data:{labels:SITES.map(s=>s.name),datasets:[{data:SITES.map(s=>s.values[0]||0),backgroundColor:SITES.map(s=>s.color+'cc'),borderColor:SITES.map(s=>s.color),borderWidth:1,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1d27',callbacks:{label:c=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);return ` ${c.parsed} 人 (${((c.parsed/t)*100).toFixed(1)}%)`}}}}}})}
+function buildBars(){const c=document.getElementById('regionBars');c.innerHTML='';const mx=Math.max(...SITES.map(s=>s.values[0]||0));SITES.forEach(s=>{const v=s.values[0]||0,p=mx>0?(v/mx*100).toFixed(1):0;const r=document.createElement('div');r.className='rbar-row';r.innerHTML=`<div class="rbar-label">${s.name.length>12?s.name.slice(0,12)+'…':s.name}</div><div class="rbar-track"><div class="rbar-fill" style="width:${p}%;background:${s.color}"></div></div><div class="rbar-num">${v}</div>`;c.appendChild(r)})}
+function spark(vals,color){const W=80,H=28,p=2,cl=[...vals].reverse();const mx=Math.max(...cl),mn=Math.min(...cl),rng=mx-mn||1,n=cl.length;const pts=cl.map((v,i)=>`${(p+(i/(n-1))*(W-p*2)).toFixed(1)},${(H-p-(v-mn)/rng*(H-p*2)).toFixed(1)}`).join(' ');const lx=(p+((n-1)/(n-1))*(W-p*2)).toFixed(1),ly=(H-p-(cl[n-1]-mn)/rng*(H-p*2)).toFixed(1);return `<svg class="spark" viewBox="0 0 ${W} ${H}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${lx}" cy="${ly}" r="2" fill="${color}"/></svg>`}
+function buildTable(){const tb=document.getElementById('tbody');tb.innerHTML='';SITES.forEach(s=>{const l=s.values[0]??0,pr=s.values[1]??0,d=l-pr;const ds=d===0?`<span style="color:var(--muted)">—</span>`:`<span class="${d>0?'up':'down'}">${d>0?'▲':'▼'}${Math.abs(d)}</span>`;const tr=document.createElement('tr');tr.innerHTML=`<td style="font-weight:500;color:${s.color}">${s.name}</td><td class="num" style="color:${s.color}">${l}</td><td class="num" style="color:var(--muted)">${pr}</td><td class="num">${ds}</td><td class="num" style="color:var(--muted)">${Math.max(...s.values)}</td><td class="num" style="color:var(--muted)">${Math.min(...s.values.filter(v=>v>0))}</td><td>${spark(s.values,s.color)}</td>`;tb.appendChild(tr)});const l=TOTAL[0],pr=TOTAL[1],d=l-pr;const ds=`<span class="${d>=0?'up':'down'}">${d>=0?'▲':'▼'}${Math.abs(d)}</span>`;const tr=document.createElement('tr');tr.style.borderTop='1px solid rgba(255,255,255,.15)';tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">全球總人數</td><td class="num" style="color:var(--accent);font-weight:700">${l.toLocaleString()}</td><td class="num" style="color:var(--muted)">${pr.toLocaleString()}</td><td class="num">${ds}</td><td class="num" style="color:var(--muted)">${Math.max(...TOTAL).toLocaleString()}</td><td class="num" style="color:var(--muted)">${Math.min(...TOTAL).toLocaleString()}</td><td>${spark(TOTAL,'#4f9cf9')}</td>`;tb.appendChild(tr)}
+function showRegion(name,el){document.querySelectorAll('.tag').forEach(t=>t.classList.remove('active'));if(el)el.classList.add('active');document.getElementById('closeTag').style.display='inline-block';const matched=SITES.filter(s=>s.region===name);document.getElementById('regionPanel').style.display='block';document.getElementById('rpTitle').textContent='📍 '+name+' 地區詳情';const rk=document.getElementById('rkpis');rk.innerHTML='';matched.forEach(s=>{const d=s.values[0]-s.values[1];const dc=d>0?'var(--green)':d<0?'var(--red)':'var(--muted)';rk.innerHTML+=`<div class="rkpi"><div class="rkpi-label">${s.name}</div><div class="rkpi-value" style="color:${s.color}">${s.values[0]}</div><div style="font-size:.75rem;color:${dc};margin-top:4px">vs 前期 ${d>0?'▲':d<0?'▼':'±'}${Math.abs(d)}</div></div>`});const labels=[...DATES].reverse().map(fmt);const ds=matched.map(s=>({label:s.name,data:[...s.values].reverse(),borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:3,tension:.35,spanGaps:true}));const ctx=document.getElementById('regionChart').getContext('2d');if(rChart)rChart.destroy();rChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:10},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7a7f99',font:{size:10}}}}}});const lg=document.getElementById('regionLegend');lg.innerHTML='';matched.forEach(s=>{const i=document.createElement('div');i.className='leg';i.innerHTML=`<div class="dot" style="background:${s.color}"></div><span>${s.name}</span>`;lg.appendChild(i)});document.getElementById('regionPanel').scrollIntoView({behavior:'smooth',block:'start'})}
+function closeRegion(){document.getElementById('regionPanel').style.display='none';document.querySelectorAll('.tag').forEach(t=>t.classList.remove('active'));document.getElementById('closeTag').style.display='none';if(rChart){rChart.destroy();rChart=null}}
+function setRange(r,btn){range=r;document.querySelectorAll('.btn-group .btn').forEach(b=>{if(b.onclick&&b.onclick.toString().includes('setRange'))b.classList.remove('active')});btn.classList.add('active');buildTotal();buildMulti()}
+function setType(t){ctype=t;document.getElementById('btnLine').classList.toggle('active',t==='line');document.getElementById('btnBar').classList.toggle('active',t==='bar');buildTotal()}
 updateKPIs();buildTotal();buildMulti();buildPie();buildBars();buildTable();
 </script>
 </body>
